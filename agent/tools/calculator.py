@@ -23,8 +23,8 @@ from pydantic import BaseModel, Field
 
 class DiscountTier(BaseModel):
     min_lines: int
-    discount_type: Literal["RATE", "FLAT"]
-    value: float  # RATE면 0~1 비율, FLAT이면 원 단위 정액
+    discount_type: Literal["RATE", "AMOUNT"]
+    value: float  # RATE면 0~1 비율, AMOUNT면 원 단위 정액
 
 
 class PlanData(BaseModel):
@@ -78,7 +78,7 @@ class CombineDiscountResult(BaseModel):
     plan_id: str
     combine_product_id: Optional[str]
     discount_amount: int  # 월 할인액(원)
-    discount_type: Optional[Literal["RATE", "FLAT"]] = None
+    discount_type: Optional[Literal["RATE", "AMOUNT"]] = None
     applied_tier: Optional[DiscountTier] = None
     error: Optional[str] = None
 

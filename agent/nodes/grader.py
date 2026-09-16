@@ -17,9 +17,10 @@ TODO: rule_type='DEVICE_BENEFIT' 규칙은 아직 어디서도 적용 안 함 �
 계산에 반영할지, 여기서 부가 혜택으로만 표시할지 결정 필요 (실제 combine_rules
 시드 데이터 보면서 정하는 게 나을 듯).
 
-condition_field가 뭘 가리키는지(요금제 필드 vs 사용자 요구사항 필드)는 실제
-combine_rules row가 없어서 확정 못 했음 — 지금은 parsed_requirements와 plan을
-합친 dict에서 찾도록 해뒀음. 실제 필드명 다르면 _build_context()만 고치면 됨.
+condition_field는 실제 combine_rules 시드 기준으로 두 종류가 확인됨:
+  - plan_base_fee: plan 필드(monthly_fee)의 DB 컬럼명 별칭. _build_context()에서 채움.
+  - same_owner_line_count: 사용자 요구사항 쪽 필드. Router가 항상 물어봐서
+    parsed_requirements에 채워 넣음(router.py의 ParsedRequirements 참고).
 """
 
 from __future__ import annotations
@@ -51,8 +52,17 @@ def _coerce(value_str: str, reference: Any):
 
 
 def _build_context(candidate: CandidateResult, parsed_requirements: dict) -> dict:
-    """condition_field를 찾을 대상 dict. plan 필드가 요구사항 필드보다 우선."""
-    return {**parsed_requirements, **candidate["plan"]}
+    """condition_field를 찾을 대상 dict. plan 필드가 요구사항 필드보다 우선.
+
+    combine_rules.condition_field는 schema_full.sql 컬럼명(plan_base_fee)을 그대로 쓰는데,
+    Retriever가 plan 필드는 monthly_fee로 이름을 바꿔서 넘기므로(base_fee -> monthly_fee)
+    여기서 별칭을 하나 채워준다. plan_base_fee 자체가 parsed_requirements/plan에 실제로
+    있을 리는 없으니 merge 순서와 무관하게 안전함.
+    """
+    plan = candidate["plan"]
+    context = {**parsed_requirements, **plan}
+    context["plan_base_fee"] = plan.get("monthly_fee")
+    return context
 
 
 def _evaluate_rule(rule: dict, context: dict) -> bool:

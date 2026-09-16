@@ -51,6 +51,13 @@ class ParsedRequirements(BaseModel):
     unlimited_data: bool = Field(default=False, description="무제한 요금제를 원하는지")
     monthly_budget: Optional[int] = Field(default=None, description="월 요금 예산 상한(원). 언급 없으면 null")
     family_line_count: int = Field(default=1, description="결합 대상 회선 수(가족 구성원 수). 언급 없으면 1")
+    same_owner_line_count: Optional[int] = Field(
+        default=None,
+        description=(
+            "사용자 본인 명의로 이미 등록되어 있는 휴대폰 회선 수(신규/변경 예정 회선은 제외). "
+            "일부 결합상품은 명의당 결합 가능 회선 수를 제한하기 때문에 결합 자격 판정에 필요함."
+        ),
+    )
     wants_new_device: bool = Field(default=False, description="새 단말기 구매 의향이 있는지")
     handset_model: Optional[str] = Field(
         default=None, description="원하는 단말기 기종명(예: 갤럭시 S26). wants_new_device=true인데 언급 없으면 null"
@@ -61,15 +68,21 @@ class ParsedRequirements(BaseModel):
 
 
 _MISSING_FIELD_LABELS = {
+    "same_owner_line_count": "본인 명의로 이미 등록된 휴대폰 회선 수",
     "handset_model": "원하시는 단말기 기종",
     "subscription_type": "기기변경인지 번호이동인지",
 }
 
 
 def _find_missing_fields(parsed: dict) -> list[str]:
-    if not parsed.get("wants_new_device"):
-        return []
+    # same_owner_line_count는 결합 자격(예: SKT 요즘가족결합의 "명의당 1회선" 제한)
+    # 판정에 항상 쓰일 수 있어서 wants_new_device 여부와 무관하게 매번 확인한다.
     missing = []
+    if parsed.get("same_owner_line_count") is None:
+        missing.append("same_owner_line_count")
+
+    if not parsed.get("wants_new_device"):
+        return missing
     if not parsed.get("handset_model"):
         missing.append("handset_model")
     if not parsed.get("subscription_type"):
