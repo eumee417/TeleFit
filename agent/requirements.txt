@@ -1,0 +1,21 @@
+# --- 웹 서버 (worker.py) ---
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.9   # 캡쳐화면 업로드(Screenshot Parser)용 multipart 파싱
+ 
+# --- Agent 오케스트레이션 ---
+langgraph>=0.2
+langchain-core>=0.3
+langchain-openai>=0.3.9   # use_responses_api=True(Tool Calling) 지원 최소 버전
+ 
+# --- 설정 ---
+pydantic>=2.7
+python-dotenv>=1.0
+ 
+# --- DB (Retriever용 — 아직 미구현, 실제 접근 방식 확정되면 조정 필요) ---
+asyncpg>=0.29
+pgvector>=0.3
+ 
+# --- 임베딩 / 리랭커 (Hugging Face) ---
+sentence-transformers>=3.0
+ 
