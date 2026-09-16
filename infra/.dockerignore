@@ -1,0 +1,10 @@
+# 지금 docker-compose.yml은 Dockerfile 없이 볼륨 마운트로 돌아가서 이 파일이
+# 적용되는 곳이 없음. 나중에 agent/Dockerfile 만들 때 build 컨텍스트에서
+# 제외할 목록 — 그때 가서 다시 확인할 것.
+
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+*.egg-info/

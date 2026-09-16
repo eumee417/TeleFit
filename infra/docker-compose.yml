@@ -1,0 +1,50 @@
+# 로컬 테스트용. infra/ 안에서 `docker compose up`으로 실행.
+#
+# postgres + python-agent 두 개만 있음 — backend(NestJS)는 아직 라우트가 없고
+# redis도 어디서도 안 써서, 지금 넣어봤자 테스트에 도움이 안 됨. NestJS 작업
+# 시작하면 이 파일에 backend/redis/nginx 서비스 추가하면 됨.
+#
+# 실행: cd infra && docker compose up
+# 재실행 시 DB를 깨끗하게 다시 만들고 싶으면: docker compose down -v
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    ports:
+      - "5433:5432" # 호스트에서 psql로 직접 확인하고 싶을 때 필요 (5432는 다른 프로젝트 컨테이너가 점유 중이라 5433으로 매핑)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db_init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telefit -d telefit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  python-agent:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes:
+      - ../agent:/app/agent
+    env_file:
+      - ../agent/.env
+    environment:
+      # 컨테이너 안에서는 "localhost"가 아니라 서비스명(postgres)으로 접근해야 함 —
+      # .env의 DATABASE_URL(localhost 기준)은 로컬 직접 실행용이고, 이 값이 그걸 덮어씀.
+      DATABASE_URL: postgresql://telefit:telefit@postgres:5432/telefit
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      bash -c "pip install --no-cache-dir -r agent/requirements.txt &&
+               uvicorn agent.worker:app --host 0.0.0.0 --port 8000 --reload
+               --reload-exclude 'agent/venv/*'"
+
+volumes:
+  pgdata:
