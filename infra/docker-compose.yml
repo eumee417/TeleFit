@@ -1,8 +1,6 @@
 # 로컬 테스트용. infra/ 안에서 `docker compose up`으로 실행.
 #
-# postgres + python-agent 두 개만 있음 — backend(NestJS)는 아직 라우트가 없고
-# redis도 어디서도 안 써서, 지금 넣어봤자 테스트에 도움이 안 됨. NestJS 작업
-# 시작하면 이 파일에 backend/redis/nginx 서비스 추가하면 됨.
+# postgres + redis + python-agent + backend(NestJS) 네 개.
 #
 # 실행: cd infra && docker compose up
 # 재실행 시 DB를 깨끗하게 다시 만들고 싶으면: docker compose down -v
@@ -45,6 +43,37 @@ services:
       bash -c "pip install --no-cache-dir -r agent/requirements.txt &&
                uvicorn agent.worker:app --host 0.0.0.0 --port 8000 --reload
                --reload-exclude 'agent/venv/*'"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379" # 호스트에서 redis-cli로 직접 확인하고 싶을 때 필요 (6379는 다른 프로젝트 컨테이너가 점유 중이라 6380으로 매핑)
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ../backend:/app
+      - /app/node_modules # 호스트(Windows) node_modules를 안 덮어쓰게 분리 — 컨테이너 안에서만 설치/사용
+    env_file:
+      - ../backend/.env
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      python-agent:
+        condition: service_started
+    command: >
+      sh -c "npm install &&
+             npm run start:dev"
 
 volumes:
   pgdata:
