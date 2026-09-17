@@ -7,6 +7,7 @@ import { JobsModule } from './Jobs/Jobs.module';
 import { PlansModule } from './Plans/Plans.module';
 import { RecommendModule } from './Recommend/Recommend.module';
 import { CalculateModule } from './Calculate/Calculate.module';
+import { HandsetsModule } from './Handsets/Handsets.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CalculateModule } from './Calculate/Calculate.module';
     PlansModule,
     RecommendModule,
     CalculateModule,
+    HandsetsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

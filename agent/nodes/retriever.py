@@ -33,6 +33,7 @@ from agent.core.db import get_pool
 from agent.core.state import AgentState, CandidateResult
 
 CANDIDATE_LIMIT = 3
+UNLIMITED_DATA_GB = 999  # schema_full.sql/시드 데이터 컨벤션: 완전무제한 요금제는 data_gb=999로 표시
 
 
 async def retriever_node(state: AgentState) -> dict:
@@ -112,12 +113,13 @@ async def _fetch_plans(conn, req: dict):
         params.append(req["carrier"])
         conditions.append(f"c.carrier_name = ${len(params)}")
 
-    if req.get("data_gb") and not req.get("unlimited_data"):
+    if req.get("unlimited_data"):
+        # 완전무제한 요금제만 원하는 경우 — data_gb=999 컨벤션으로 필터링.
+        params.append(UNLIMITED_DATA_GB)
+        conditions.append(f"p.data_gb >= ${len(params)}")
+    elif req.get("data_gb"):
         params.append(req["data_gb"])
         conditions.append(f"p.data_gb >= ${len(params)}")
-    # TODO: unlimited_data=true 필터는 현재 스키마만으로는 애매함.
-    # data_gb=0이 무제한을 뜻하는지, data_allowance(VARCHAR) 텍스트로 판단해야 하는지
-    # 확인 필요 — 지금은 unlimited_data=true면 data_gb 조건 자체를 건너뜀.
 
     if req.get("monthly_budget"):
         params.append(req["monthly_budget"])

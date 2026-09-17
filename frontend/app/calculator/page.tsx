@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { fetchPlans, fetchDevices, fetchMnpBonus } from "@/lib/calculatorApi";
+import { fetchPlans, fetchDevices, fetchMnpConversionSubsidy } from "@/lib/calculatorApi";
 import type { PlanOption, DeviceOption } from "@/lib/calculatorApi";
 
 type DiscountMode = "선택약정" | "공시지원금";
@@ -47,12 +47,11 @@ export default function CalculatorPage() {
     setLoading(true);
     setError(null);
 
-    Promise.all([fetchPlans(), fetchDevices(), fetchMnpBonus()])
-      .then(([planData, deviceData, mnpData]) => {
+    Promise.all([fetchPlans(), fetchDevices()])
+      .then(([planData, deviceData]) => {
         if (cancelled) return;
         setPlans(planData);
         setDevices(deviceData);
-        setMnpBonusAmount(mnpData.amount);
         setSelectedPlan(planData[2] ?? planData[0] ?? null);
         setSelectedDeviceId(deviceData[2]?.id ?? deviceData[0]?.id ?? null);
       })
@@ -61,6 +60,18 @@ export default function CalculatorPage() {
 
     return () => { cancelled = true; };
   }, []);
+
+  // 선택된 요금제+단말기 조합의 실제 번호이동 전환지원금을 조회 (transferType과 무관하게
+  // "MNP를 선택하면 얼마 받는지"를 항상 미리 보여주기 위함 — calc의 mnpBonus는 아래에서
+  // transferType==="MNP"일 때만 반영함).
+  useEffect(() => {
+    if (selectedPlan === null || selectedDeviceId === null) return;
+    let cancelled = false;
+    fetchMnpConversionSubsidy(selectedPlan.id, selectedDeviceId)
+      .then((amount) => { if (!cancelled) setMnpBonusAmount(amount); })
+      .catch(() => { if (!cancelled) setMnpBonusAmount(0); });
+    return () => { cancelled = true; };
+  }, [selectedPlan, selectedDeviceId]);
 
   const selectedDevice = devices.find((d) => d.id === selectedDeviceId) ?? null;
   const devicePrice = selectedDevice?.retailPrice ?? 0;

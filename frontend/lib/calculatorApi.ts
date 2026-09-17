@@ -17,14 +17,10 @@ export interface DeviceOption {
   subsidy: number;
 }
 
-export interface MnpBonus {
-  amount: number;
-}
-
-// fetchPlans()는 백엔드 POST /api/plans/search와 연동됨 (NEXT_PUBLIC_API_BASE_URL 필요).
-// fetchDevices()/fetchMnpBonus()는 백엔드에 대응하는 엔드포인트가 아직 없어서 Mock 유지.
-// [TODO: DB/API 연동 필요] 단말기 목록(GET /api/devices), 번호이동 보너스(GET /api/mnp-bonus)
-// 엔드포인트가 백엔드에 생기면 아래 두 함수도 fetchPlans()와 같은 방식으로 교체할 것.
+// fetchPlans()는 POST /api/plans/search, fetchDevices()는 GET /api/handsets와 연동됨
+// (둘 다 NEXT_PUBLIC_API_BASE_URL 필요). devicePrice는 실제 출고가지만 subsidy(공시지원금)는
+// handset_subsidies 데이터가 2건뿐이라 아직 0으로 둠 — 통신사별 공시지원금 조사 후 채울 것.
+// 번호이동 전환지원금은 fetchMnpConversionSubsidy()가 선택된 요금제+단말기 조합으로 실시간 조회함.
 const MOCK_PLANS: PlanOption[] = [
   { id: 1, carrier: "SKT", name: "5GX 레귤러+", basePrice: 89000, data: "110GB", dataGB: 110, callMinutes: null, watchFreeEligible: true },
   { id: 2, carrier: "SKT", name: "5G 슬림", basePrice: 55000, data: "12GB", dataGB: 12, callMinutes: 200, watchFreeEligible: false },
@@ -37,7 +33,7 @@ const MOCK_PLANS: PlanOption[] = [
   { id: 9, carrier: "알뜰폰", name: "모빙 5G", basePrice: 38000, data: "50GB", dataGB: 50, callMinutes: null, watchFreeEligible: false },
 ];
 
-// [TODO: DB/API 연동 필요] 단말기 정보 Mock 데이터
+// 오프라인/BASE_URL 미설정 시에만 쓰는 Mock 데이터.
 const MOCK_DEVICES: DeviceOption[] = [
   { id: 1, name: "갤럭시 S25 Ultra (256GB)", category: "smartphone", retailPrice: 1_749_400, subsidy: 420_000 },
   { id: 2, name: "갤럭시 S25+ (256GB)", category: "smartphone", retailPrice: 1_359_000, subsidy: 380_000 },
@@ -49,8 +45,8 @@ const MOCK_DEVICES: DeviceOption[] = [
   { id: 8, name: "갤럭시 워치 Ultra (LTE)", category: "watch", retailPrice: 749_000, subsidy: 100_000 },
 ];
 
-// [TODO: DB/API 연동 필요] 번호이동 보너스/전환지원금 정보 Mock 데이터
-const MOCK_MNP_BONUS: MnpBonus = { amount: 100_000 };
+// 오프라인 모드에서 번호이동 전환지원금 대신 보여줄 대표값.
+const MOCK_MNP_CONVERSION_SUBSIDY = 100_000;
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 const SIMULATED_DELAY = 600;
@@ -97,12 +93,56 @@ export async function fetchPlans(): Promise<PlanOption[]> {
   return fakeFetch(MOCK_PLANS);
 }
 
+interface BackendHandset {
+  handsetId: number;
+  modelName: string;
+  manufacturer: string;
+  deviceCategory: string;
+  releasePrice: number;
+}
+
+function toDeviceOption(h: BackendHandset): DeviceOption {
+  return {
+    id: h.handsetId,
+    name: `${h.manufacturer} ${h.modelName}`,
+    category: h.deviceCategory === "watch" || h.deviceCategory === "tablet" ? h.deviceCategory : "smartphone",
+    retailPrice: h.releasePrice,
+    // 공시지원금은 handset_subsidies 데이터가 2건뿐이라 아직 신뢰성 있게 못 채움 — 0으로 표시.
+    subsidy: 0,
+  };
+}
+
 export async function fetchDevices(): Promise<DeviceOption[]> {
-  // 백엔드에 대응 엔드포인트가 없어서 BASE_URL 설정 여부와 무관하게 항상 Mock.
+  if (BASE_URL) {
+    const res = await fetch(`${BASE_URL}/api/handsets`);
+    if (!res.ok) throw new Error("단말기 데이터를 불러오지 못했습니다.");
+    const handsets: BackendHandset[] = await res.json();
+    return handsets.map(toDeviceOption);
+  }
   return fakeFetch(MOCK_DEVICES);
 }
 
-export async function fetchMnpBonus(): Promise<MnpBonus> {
-  // 백엔드에 대응 엔드포인트가 없어서 BASE_URL 설정 여부와 무관하게 항상 Mock.
-  return fakeFetch(MOCK_MNP_BONUS);
+interface DeviceSubsidyResult {
+  conversion_subsidy: number;
+  error: string | null;
+}
+
+interface CalculateResponse {
+  device_subsidy: DeviceSubsidyResult | null;
+}
+
+// 선택된 요금제+단말기 조합의 실제 번호이동 전환지원금을 조회한다.
+// handset_subsidies 시드가 2건뿐이라 대부분 0을 반환하지만, 있는 조합은 실제 값이다.
+export async function fetchMnpConversionSubsidy(planId: number, handsetId: number): Promise<number> {
+  if (BASE_URL) {
+    const res = await fetch(`${BASE_URL}/api/calculate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan_id: planId, handset_id: handsetId, subscription_type: "MNP" }),
+    });
+    if (!res.ok) throw new Error("번호이동 혜택 정보를 불러오지 못했습니다.");
+    const data: CalculateResponse = await res.json();
+    return data.device_subsidy?.conversion_subsidy ?? 0;
+  }
+  return fakeFetch(MOCK_MNP_CONVERSION_SUBSIDY);
 }
