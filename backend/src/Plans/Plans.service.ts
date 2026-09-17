@@ -13,6 +13,8 @@ export interface PlanSearchResult {
   planName: string;
   baseFee: number;
   dataGb: number;
+  dataAllowance: string | null;
+  voiceAllowance: string | null;
   selectiveDiscountEligible: boolean;
 }
 
@@ -38,7 +40,8 @@ export class PlansService {
     }
 
     const query = `
-      SELECT p.plan_id, c.carrier_name, p.plan_name, p.base_fee, p.data_gb, p.selective_discount_eligible
+      SELECT p.plan_id, c.carrier_name, p.plan_name, p.base_fee, p.data_gb,
+             p.data_allowance, p.voice_allowance, p.selective_discount_eligible
       FROM plans p
       JOIN carriers c ON c.carrier_id = p.carrier_id
       WHERE ${conditions.join(' AND ')}
@@ -53,6 +56,8 @@ export class PlansService {
       planName: r.plan_name,
       baseFee: r.base_fee,
       dataGb: r.data_gb,
+      dataAllowance: r.data_allowance,
+      voiceAllowance: r.voice_allowance,
       selectiveDiscountEligible: r.selective_discount_eligible,
     }));
   }

@@ -47,6 +47,8 @@ async def retriever_node(state: AgentState) -> dict:
             carrier_id = prow["carrier_id"]
             plan = {
                 "plan_id": str(prow["plan_id"]),
+                "plan_name": prow["plan_name"],
+                "carrier_name": prow["carrier_name"],
                 "monthly_fee": prow["base_fee"],
                 "data_gb": prow["data_gb"],
                 "selective_discount_eligible": prow["selective_discount_eligible"],
@@ -122,7 +124,8 @@ async def _fetch_plans(conn, req: dict):
         conditions.append(f"p.base_fee <= ${len(params)}")
 
     query = f"""
-        SELECT p.plan_id, p.carrier_id, p.base_fee, p.data_gb, p.selective_discount_eligible
+        SELECT p.plan_id, p.carrier_id, p.plan_name, c.carrier_name, p.base_fee, p.data_gb,
+               p.selective_discount_eligible
         FROM plans p
         JOIN carriers c ON c.carrier_id = p.carrier_id
         WHERE {' AND '.join(conditions)}

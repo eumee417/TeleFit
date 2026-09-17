@@ -58,8 +58,9 @@ export default function Navigation() {
             >
               {theme === "dark" ? "🌞" : "🌙"}
             </button>
-            <button className="btn-outline">로그인</button>
-            <button className="btn-primary !px-4 !py-2 !text-sm">무료 시작</button>
+            <Link href="/chatbot">
+                <button className="btn-primary !px-4 !py-2 !text-sm">무료 시작</button>
+            </Link>
           </div>
 
           {/* 모바일 액션 및 햄버거 */}
@@ -101,7 +102,6 @@ export default function Navigation() {
               </Link>
             ))}
             <div className="pt-3 px-4 flex gap-3">
-              <button className="btn-outline flex-1">로그인</button>
               <button className="btn-primary flex-1 !px-0 !py-2 !text-sm">무료 시작</button>
             </div>
           </div>

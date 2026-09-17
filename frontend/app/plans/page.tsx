@@ -1,24 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { fetchPlans } from "@/lib/calculatorApi";
+import type { PlanOption } from "@/lib/calculatorApi";
 
 type Tab = "mobile" | "device";
 type Carrier = "전체" | "SKT" | "KT" | "LGU+" | "알뜰폰";
-type Category = "전체" | "5G" | "LTE" | "무제한" | "데이터나눔";
-
-interface MobilePlan {
-  id: number;
-  name: string;
-  carrier: Exclude<Carrier, "전체">;
-  category: Exclude<Category, "전체">;
-  price: number;
-  data: string;
-  call: string;
-  sms: string;
-  speed: string;
-  badge?: string;
-  highlight?: boolean;
-}
 
 interface DevicePlan {
   id: number;
@@ -32,24 +19,8 @@ interface DevicePlan {
   badge?: string;
 }
 
-// [TODO: DB/API 연동 필요]
-// 아래 MOBILE_PLANS 및 DEVICE_PLANS는 추후 백엔드 DB(Supabase, REST API 등)에서 불러오도록 변경해야 합니다.
-// 서버 연동 시 useState와 useEffect를 사용하여 비동기 통신으로 데이터를 받아오세요.
-const MOBILE_PLANS: MobilePlan[] = [
-  { id: 1,  carrier: "SKT",   name: "5GX 플래티넘",    category: "5G",   price: 130000, data: "무제한",  call: "무제한", sms: "무제한", speed: "최대 10Gbps",  badge: "프리미엄" },
-  { id: 2,  carrier: "SKT",   name: "5GX 레귤러+",     category: "5G",   price: 89000,  data: "110GB", call: "무제한", sms: "무제한", speed: "최대 10Gbps",  highlight: true, badge: "인기" },
-  { id: 3,  carrier: "SKT",   name: "5G 슬림",         category: "5G",   price: 55000,  data: "12GB",  call: "200분",  sms: "무제한", speed: "최대 10Gbps" },
-  { id: 4,  carrier: "KT",    name: "슈퍼플랜 베이직", category: "5G",   price: 85000,  data: "완전무제한", call: "무제한", sms: "무제한", speed: "최대 10Gbps", badge: "추천" },
-  { id: 5,  carrier: "KT",    name: "5G Y세대",        category: "5G",   price: 69000,  data: "30GB",  call: "무제한", sms: "무제한", speed: "최대 10Gbps" },
-  { id: 6,  carrier: "KT",    name: "LTE 베이직",      category: "LTE",  price: 47000,  data: "14GB",  call: "300분",  sms: "무제한", speed: "최대 150Mbps" },
-  { id: 7,  carrier: "LGU+",  name: "5G 시그니처",     category: "5G",   price: 95000,  data: "완전무제한", call: "무제한", sms: "무제한", speed: "최대 10Gbps" },
-  { id: 8,  carrier: "LGU+",  name: "5G 스탠다드",     category: "5G",   price: 79000,  data: "100GB", call: "무제한", sms: "무제한", speed: "최대 10Gbps",  badge: "인기" },
-  { id: 9,  carrier: "LGU+",  name: "LTE 라이트",      category: "LTE",  price: 42000,  data: "8GB",   call: "200분",  sms: "무제한", speed: "최대 150Mbps" },
-  { id: 10, carrier: "알뜰폰", name: "헬로 모바일 LTE", category: "LTE",  price: 16500,  data: "11GB",  call: "100분",  sms: "무제한", speed: "최대 150Mbps", badge: "최저가" },
-  { id: 11, carrier: "알뜰폰", name: "이야기 무제한",   category: "무제한", price: 22000, data: "10GB+", call: "무제한", sms: "무제한", speed: "최대 150Mbps", highlight: true, badge: "인기" },
-  { id: 12, carrier: "알뜰폰", name: "모빙 5G",         category: "5G",   price: 38000,  data: "50GB",  call: "무제한", sms: "무제한", speed: "최대 10Gbps" },
-];
-
+// 모바일 요금제는 fetchPlans()(POST /api/plans/search)로 연동됨.
+// [TODO: DB/API 연동 필요] 기기결합 플랜은 백엔드에 대응 엔드포인트가 아직 없어서 Mock 유지.
 const DEVICE_PLANS: DevicePlan[] = [
   { id: 1, carrier: "SKT",   device: "갤럭시 워치 7 (LTE)",      type: "스마트워치", monthlyFee: 11000, freeEligiblePlan: "5GX 레귤러+ 이상",  dataShare: "워치 전용 데이터",  condition: "T끼리 플랜 가입 필수",         badge: "워치 무료 가능" },
   { id: 2, carrier: "SKT",   device: "갤럭시 워치 Ultra (LTE)",   type: "스마트워치", monthlyFee: 11000, freeEligiblePlan: "5GX 플래티넘",      dataShare: "워치 전용 데이터",  condition: "프리미엄 플랜 한정",           badge: "프리미엄" },
@@ -61,8 +32,8 @@ const DEVICE_PLANS: DevicePlan[] = [
   { id: 8, carrier: "LGU+",  device: "Apple Watch Ultra 2 (LTE)", type: "스마트워치", monthlyFee: 11000, freeEligiblePlan: "해당 없음",        dataShare: "1GB 데이터쉐어",    condition: "LGU+ 모바일 회선 필수" },
 ];
 
-const CARRIERS: Carrier[] = ["전체", "SKT", "KT", "LGU+", "알뜰폰"];
-const CATEGORIES: Category[] = ["전체", "5G", "LTE", "무제한", "데이터나눔"];
+// 알뜰폰(MVNO)은 DB에 아직 시드되지 않아 필터에서 제외 (선택해도 항상 0건이면 혼란스러움).
+const CARRIERS: Carrier[] = ["전체", "SKT", "KT", "LGU+"];
 
 const CARRIER_DOT_COLOR: Record<string, string> = {
   SKT: "#e51e25", KT: "#e87722", "LGU+": "#a50034", 알뜰폰: "var(--color-cyan-400)",
@@ -80,23 +51,36 @@ const BADGE_CLASS: Record<string, string> = {
 export default function PlansPage() {
   const [activeTab, setActiveTab] = useState<Tab>("mobile");
   const [carrierFilter, setCarrierFilter] = useState<Carrier>("전체");
-  const [categoryFilter, setCategoryFilter] = useState<Category>("전체");
   const [maxMonthlyPrice, setMaxMonthlyPrice] = useState(150000);
   const [sortOrder, setSortOrder] = useState<"price" | "data">("price");
   const [compareIds, setCompareIds] = useState<number[]>([]);
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<"전체" | "스마트워치" | "태블릿">("전체");
 
-  const filteredMobilePlans = MOBILE_PLANS
+  const [mobilePlans, setMobilePlans] = useState<PlanOption[]>([]);
+  const [mobilePlansLoading, setMobilePlansLoading] = useState(true);
+  const [mobilePlansError, setMobilePlansError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMobilePlansLoading(true);
+    setMobilePlansError(null);
+    fetchPlans()
+      .then((plans) => { if (!cancelled) setMobilePlans(plans); })
+      .catch((e: Error) => { if (!cancelled) setMobilePlansError(e.message); })
+      .finally(() => { if (!cancelled) setMobilePlansLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const filteredMobilePlans = mobilePlans
     .filter((p) => carrierFilter === "전체" || p.carrier === carrierFilter)
-    .filter((p) => categoryFilter === "전체" || p.category === categoryFilter)
-    .filter((p) => p.price <= maxMonthlyPrice)
-    .sort((a, b) => sortOrder === "price" ? a.price - b.price : a.data.localeCompare(b.data));
+    .filter((p) => p.basePrice <= maxMonthlyPrice)
+    .sort((a, b) => sortOrder === "price" ? a.basePrice - b.basePrice : a.dataGB - b.dataGB);
 
   const filteredDevicePlans = DEVICE_PLANS
     .filter((d) => carrierFilter === "전체" || d.carrier === carrierFilter)
     .filter((d) => deviceTypeFilter === "전체" || d.type === deviceTypeFilter);
 
-  const comparePlans = MOBILE_PLANS.filter((p) => compareIds.includes(p.id));
+  const comparePlans = mobilePlans.filter((p) => compareIds.includes(p.id));
 
   const toggleCompare = (id: number) => {
     setCompareIds((prev) =>
@@ -217,15 +201,6 @@ export default function PlansPage() {
             </div>
 
             <div>
-              <div className="data-label uppercase tracking-widest mb-2">유형</div>
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((c) => (
-                  <FilterButton key={c} active={categoryFilter === c} onClick={() => setCategoryFilter(c)}>{c}</FilterButton>
-                ))}
-              </div>
-            </div>
-
-            <div>
               <div className="flex justify-between items-center mb-2">
                 <div className="data-label uppercase tracking-widest">최대 요금</div>
                 <div className="text-[var(--color-cyan-400)] text-sm font-medium font-mono">{maxMonthlyPrice.toLocaleString()}원 이하</div>
@@ -264,33 +239,41 @@ export default function PlansPage() {
             </div>
           )}
 
+          {mobilePlansError && (
+            <div className="alert-warn mb-6 flex items-center gap-2">
+              <span>⚠</span> {mobilePlansError} — 잠시 후 다시 시도해 주세요.
+            </div>
+          )}
+
           {/* 요금제 카드 그리드 */}
+          {mobilePlansLoading ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-56" />)}
+            </div>
+          ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredMobilePlans.map((plan) => (
-              <div key={plan.id} className={`plan-card ${plan.highlight ? "plan-card-featured" : ""}`}>
+              <div key={plan.id} className="plan-card">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: CARRIER_DOT_COLOR[plan.carrier] }} />
                     <span className="text-[var(--text-50)] text-xs">{plan.carrier}</span>
                   </div>
-                  {plan.badge && <span className={BADGE_CLASS[plan.badge] ?? "badge badge-muted"}>{plan.badge}</span>}
                 </div>
 
                 <div>
                   <h3 className="font-display text-[var(--text-main)] font-semibold text-lg leading-tight mb-1">{plan.name}</h3>
                   <div className="price-large text-3xl">
-                    {plan.price.toLocaleString()}
+                    {plan.basePrice.toLocaleString()}
                     <span className="text-base font-normal text-[var(--text-50)]" style={{ WebkitTextFillColor: "color-mix(in srgb, var(--text-main) 50%, transparent)" }}>원/월</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  {[["데이터", plan.data], ["통화", plan.call], ["문자", plan.sms], ["속도", plan.speed]].map(([label, value]) => (
-                    <div key={label} className="data-row">
-                      <span className="data-label">{label}</span>
-                      <span className="text-[var(--text-80)] text-sm">{value}</span>
-                    </div>
-                  ))}
+                  <div className="data-row">
+                    <span className="data-label">데이터</span>
+                    <span className="text-[var(--text-80)] text-sm">{plan.data}</span>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 mt-auto pt-2">
@@ -305,8 +288,9 @@ export default function PlansPage() {
               </div>
             ))}
           </div>
+          )}
 
-          {filteredMobilePlans.length === 0 && (
+          {!mobilePlansLoading && filteredMobilePlans.length === 0 && (
             <div className="text-center py-20 text-[var(--text-30)]">
               <div className="text-4xl mb-4">🔍</div>
               <div>조건에 맞는 요금제가 없습니다.</div>
@@ -332,16 +316,14 @@ export default function PlansPage() {
                   </thead>
                   <tbody>
                     {[
-                      { label: "월 요금", key: "price", format: (v: string | number) => `${Number(v).toLocaleString()}원` },
-                      { label: "데이터",  key: "data",  format: (v: string | number) => String(v) },
-                      { label: "통화",   key: "call",  format: (v: string | number) => String(v) },
-                      { label: "속도",   key: "speed", format: (v: string | number) => String(v) },
-                    ].map(({ label, key, format }) => (
-                      <tr key={key} className="border-b border-[var(--border-5)] last:border-0">
+                      { label: "월 요금", render: (p: PlanOption) => `${p.basePrice.toLocaleString()}원` },
+                      { label: "데이터",  render: (p: PlanOption) => p.data },
+                    ].map(({ label, render }) => (
+                      <tr key={label} className="border-b border-[var(--border-5)] last:border-0">
                         <td className="p-4 data-label">{label}</td>
                         {comparePlans.map((p) => (
                           <td key={p.id} className="p-4 text-center text-[var(--text-80)]">
-                            {format(p[key as keyof MobilePlan] as string | number)}
+                            {render(p)}
                           </td>
                         ))}
                       </tr>

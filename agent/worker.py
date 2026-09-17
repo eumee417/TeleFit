@@ -79,7 +79,12 @@ async def recommend(req: RecommendRequest) -> dict:
     except Exception as e:  # noqa: BLE001 — 일단 500으로 감싸서 원인 노출, 로깅 체계는 별도 TODO
         raise HTTPException(status_code=500, detail=str(e)) from e
 
-    return final_state["final_output"]
+    # 무상태 원칙: parsed_requirements를 응답에 실어 보내야 프론트가 다음 요청의
+    # prior_requirements로 그대로 되돌려줄 수 있음 (클라리피케이션이든 추천 완료든 항상 포함).
+    return {
+        **final_state["final_output"],
+        "parsed_requirements": final_state.get("parsed_requirements"),
+    }
 
 
 # ---------------------------------------------------------------------------

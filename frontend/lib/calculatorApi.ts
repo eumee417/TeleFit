@@ -21,10 +21,10 @@ export interface MnpBonus {
   amount: number;
 }
 
-// [TODO: DB/API 연동 필요]
-// 현재는 UI 테스트를 위해 하드코딩된 Mock 데이터를 사용하고 있습니다.
-// 추후 실제 DB(또는 Supabase 등)와 통신하도록 백엔드 API 엔드포인트를 교체해야 합니다.
-// 환경변수(NEXT_PUBLIC_API_BASE_URL)가 설정되면 해당 URL로 페치합니다.
+// fetchPlans()는 백엔드 POST /api/plans/search와 연동됨 (NEXT_PUBLIC_API_BASE_URL 필요).
+// fetchDevices()/fetchMnpBonus()는 백엔드에 대응하는 엔드포인트가 아직 없어서 Mock 유지.
+// [TODO: DB/API 연동 필요] 단말기 목록(GET /api/devices), 번호이동 보너스(GET /api/mnp-bonus)
+// 엔드포인트가 백엔드에 생기면 아래 두 함수도 fetchPlans()와 같은 방식으로 교체할 것.
 const MOCK_PLANS: PlanOption[] = [
   { id: 1, carrier: "SKT", name: "5GX 레귤러+", basePrice: 89000, data: "110GB", dataGB: 110, callMinutes: null, watchFreeEligible: true },
   { id: 2, carrier: "SKT", name: "5G 슬림", basePrice: 55000, data: "12GB", dataGB: 12, callMinutes: 200, watchFreeEligible: false },
@@ -59,29 +59,50 @@ async function fakeFetch<T>(data: T): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), SIMULATED_DELAY));
 }
 
+interface BackendPlan {
+  planId: number;
+  carrierName: string;
+  planName: string;
+  baseFee: number;
+  dataGb: number;
+  dataAllowance: string | null;
+  voiceAllowance: string | null;
+  selectiveDiscountEligible: boolean;
+}
+
+function toPlanOption(p: BackendPlan): PlanOption {
+  return {
+    id: p.planId,
+    carrier: p.carrierName,
+    name: p.planName,
+    basePrice: p.baseFee,
+    data: p.dataAllowance ?? (p.dataGb >= 999 ? "무제한" : `${p.dataGb}GB`),
+    dataGB: p.dataGb,
+    callMinutes: null, // 백엔드 voice_allowance는 텍스트 라벨이라 숫자로 못 바꿈
+    watchFreeEligible: false, // 백엔드에 요금제별 워치 무료결합 여부 데이터가 아직 없음
+  };
+}
+
 export async function fetchPlans(): Promise<PlanOption[]> {
   if (BASE_URL) {
-    const res = await fetch(`${BASE_URL}/api/plans`);
+    const res = await fetch(`${BASE_URL}/api/plans/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
     if (!res.ok) throw new Error("요금제 데이터를 불러오지 못했습니다.");
-    return res.json();
+    const plans: BackendPlan[] = await res.json();
+    return plans.map(toPlanOption);
   }
   return fakeFetch(MOCK_PLANS);
 }
 
 export async function fetchDevices(): Promise<DeviceOption[]> {
-  if (BASE_URL) {
-    const res = await fetch(`${BASE_URL}/api/devices`);
-    if (!res.ok) throw new Error("단말기 데이터를 불러오지 못했습니다.");
-    return res.json();
-  }
+  // 백엔드에 대응 엔드포인트가 없어서 BASE_URL 설정 여부와 무관하게 항상 Mock.
   return fakeFetch(MOCK_DEVICES);
 }
 
 export async function fetchMnpBonus(): Promise<MnpBonus> {
-  if (BASE_URL) {
-    const res = await fetch(`${BASE_URL}/api/mnp-bonus`);
-    if (!res.ok) throw new Error("번호이동 혜택 정보를 불러오지 못했습니다.");
-    return res.json();
-  }
+  // 백엔드에 대응 엔드포인트가 없어서 BASE_URL 설정 여부와 무관하게 항상 Mock.
   return fakeFetch(MOCK_MNP_BONUS);
 }
