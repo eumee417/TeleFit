@@ -1,0 +1,27 @@
+# python-agent 단독 배포용 compose. infra/docker-compose.yml에서 분리됨 —
+# 이 폴더만 별도 서버/환경에 올려서 독립적으로 띄우는 걸 전제로 함.
+#
+# Postgres가 이 stack 안에 없음 — .env의 DATABASE_URL이 가리키는 실제 DB에 붙는다.
+#   - 로컬에서 infra의 postgres(호스트 5433 포트)와 같이 테스트하려면:
+#     DATABASE_URL=postgresql://telefit:telefit@host.docker.internal:5433/telefit
+#   - 운영 배포 시에는 실제 DB 접속 문자열로 교체.
+# backend 쪽 AGENT_BASE_URL도 이 서비스가 실제로 떠 있는 주소로 맞춰줘야 함
+#   (같은 컴퓨터에서 로컬 테스트라면 http://host.docker.internal:8000).
+#
+# 로컬 개발(코드 수정 즉시 반영, --reload): docker compose up
+# 배포용 이미지만 빌드해서 그대로 실행하고 싶으면(볼륨마운트 없이):
+#   docker build -t telefit-agent . && docker run --env-file .env -p 8000:8000 telefit-agent
+
+services:
+  python-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app/agent # 로컬 개발용 — 실제 배포 이미지는 이 마운트 없이 Dockerfile 결과물 그대로 씀
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    command: uvicorn agent.worker:app --host 0.0.0.0 --port 8000 --reload --reload-exclude 'agent/venv/*'
+    restart: unless-stopped

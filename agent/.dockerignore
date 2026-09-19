@@ -1,0 +1,9 @@
+# agent/Dockerfile의 build context(agent/ 폴더 자체)에 적용됨.
+# 로컬 venv/캐시/시크릿을 이미지에 안 담기 위함 — .env는 런타임에 env_file로 주입.
+
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+*.egg-info/
